@@ -1,54 +1,4 @@
-name: 同步所有资源（代码 + Tags + Releases + 附件）
-
-on:
-  workflow_dispatch:   # 手动触发，推荐
-  # schedule:
-  #   - cron: '0 0 * * *'  # 可选：每天自动同步
-
-jobs:
-  sync-all:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15  # 防止附件太多导致超时
-
-    steps:
-      - name: Checkout your fork
-        uses: actions/checkout@v4
-        with:
-          ref: master
-          token: ${{ secrets.MY_GIT_TOKEN }}
-          fetch-depth: 0
-
-      - name: Set Git Identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Add upstream remote
-        run: |
-          git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
-
-      - name: Fetch upstream（代码 + Tags）
-        run: |
-          git fetch upstream --tags
-
-      - name: Checkout master
-        run: |
-          git checkout master
-
-      - name: Merge upstream/master
-        run: |
-          git merge upstream/master --allow-unrelated-histories -X theirs || echo "Already up-to-date"
-
-      - name: Push code to your fork
-        run: |
-          git remote set-url origin https://${{ secrets.MY_GIT_TOKEN }}@github.com/wuyueerhao/wordpress-theme-puock.git
-          git push origin master
-
-      - name: Push all Tags to your fork
-        run: |
-          git push origin --tags
-
-      - name: Sync Releases and Assets using GitHub API
+- name: Sync Releases and Assets using GitHub API
         env:
           SOURCE_REPO: Licoy/wordpress-theme-puock
           TARGET_REPO: wuyueerhao/wordpress-theme-puock
@@ -58,16 +8,25 @@ jobs:
           RELEASES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             https://api.github.com/repos/$SOURCE_REPO/releases)
 
+          # 检查是否返回了有效的 Releases 列表
+          echo "$RELEASES" | jq -e 'type == "array"' >/dev/null 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ 错误：未能获取到有效的 Releases 列表，返回内容可能为空或不是数组。"
+            echo "$RELEASES"
+            exit 1
+          fi
+
           echo "$RELEASES" | jq -c '.[]' | while read -r release; do
             TAG_NAME=$(echo "$release" | jq -r '.tag_name')
             NAME=$(echo "$release" | jq -r '.name')
             BODY=$(echo "$release" | jq -r '.body')
             DRAFT=$(echo "$release" | jq -r '.draft')
             PRERELEASE=$(echo "$release" | jq -r '.prerelease')
+            RELEASE_ID_ORIGINAL=$(echo "$release" | jq -r '.id')
 
             echo "🔁 Processing Release: $NAME (Tag: $TAG_NAME)"
 
-            # Step 1: 在你的 Fork 中创建 Release（不含附件）
+            # Step 1: 在你的 Fork 中创建 Release
             echo "🆕 Creating Release on your fork..."
             CREATED_RELEASE=$(curl -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
@@ -81,15 +40,24 @@ jobs:
                 "prerelease": '$PRERELEASE'
               }')
 
+            # 检查是否创建成功
+            echo "$CREATED_RELEASE" | jq -e 'has("id")' >/dev/null 2>&1
+            if [ $? -ne 0 ]; then
+              echo "❌ 创建 Release 失败，返回内容："
+              echo "$CREATED_RELEASE"
+              echo "⏩ 跳过此 Release 的附件同步"
+              continue
+            fi
+
             UPLOAD_URL=$(echo "$CREATED_RELEASE" | jq -r '.upload_url' | sed 's/{?name,label}//')
             RELEASE_ID=$(echo "$CREATED_RELEASE" | jq -r '.id')
 
             echo "✅ Created Release ID: $RELEASE_ID"
             echo "📤 Upload URL Base: $UPLOAD_URL"
 
-            # Step 2: 获取原 Release 的所有附件
+            # Step 2: 获取该 Release 的所有附件
             ASSETS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-              https://api.github.com/repos/$SOURCE_REPO/releases/$RELEASE_ID/assets)
+              https://api.github.com/repos/$SOURCE_REPO/releases/$RELEASE_ID_ORIGINAL/assets)
 
             echo "$ASSETS" | jq -c '.[]' | while read -r asset; do
               ASSET_NAME=$(echo "$asset" | jq -r '.name')
@@ -100,12 +68,10 @@ jobs:
 
               echo "⬇️  Downloading Asset: $ASSET_NAME..."
 
-              # 下载附件内容
               curl -s -L -H "Authorization: token $GITHUB_TOKEN" \
                 -H "Accept: application/octet-stream" \
                 "$DOWNLOAD_URL" -o "/tmp/$ASSET_NAME"
 
-              # 上传附件到你的 Release
               echo "📤 Uploading Asset: $ASSET_NAME to your Release..."
               curl -X POST \
                 -H "Authorization: token $GITHUB_TOKEN" \
