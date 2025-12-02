@@ -2,7 +2,7 @@ name: Sync Fork
 
 on:
   schedule:
-    - cron: '* */24 * * *' # 每天一次
+    - cron: '*/30 * * * *' # every 30 minutes
   workflow_dispatch: # on button click
 
 jobs:
@@ -14,6 +14,6 @@ jobs:
       - uses: tgymnich/fork-sync@v2.0
         with:
           token: ${{ secrets.PERSONAL_TOKEN }}
-          owner: mack-a
+          owner: llvm
           base: master
           head: master
