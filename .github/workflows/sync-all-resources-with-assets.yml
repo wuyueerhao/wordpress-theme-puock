@@ -1,16 +1,54 @@
 name: 同步所有资源（代码 + Tags + Releases + 附件）
 
 on:
-  workflow_dispatch:   # 手动触发
+  workflow_dispatch:   # 手动触发，推荐先手动测试
   # schedule:
-  #   - cron: '0 0 * * *'  # 可选：定时触发
+  #   - cron: '0 0 * * *'  # 可选：每天凌晨自动同步一次
 
 jobs:
-  sync-releases-and-assets:
+  sync-all:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # 防止附件太多导致超时
 
     steps:
-      - name: 一键同步所有资源
+      - name: Checkout your fork
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          token: ${{ secrets.MY_GIT_TOKEN }}
+          fetch-depth: 0  # 获取全部历史，支持 merge
+
+      - name: Set Git Identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
+
+      - name: Fetch upstream（代码 + Tags）
+        run: |
+          git fetch upstream --tags
+
+      - name: Checkout master
+        run: |
+          git checkout master
+
+      - name: Merge upstream/master
+        run: |
+          git merge upstream/master --allow-unrelated-histories -X theirs || echo "Already up-to-date or no changes"
+
+      - name: Push code to your fork
+        run: |
+          git remote set-url origin https://${{ secrets.MY_GIT_TOKEN }}@github.com/wuyueerhao/wordpress-theme-puock.git
+          git push origin master
+
+      - name: Push all Tags to your fork
+        run: |
+          git push origin --tags
+
+      - name: Sync Releases and Assets using GitHub API
         env:
           SOURCE_REPO: Licoy/wordpress-theme-puock
           TARGET_REPO: wuyueerhao/wordpress-theme-puock
@@ -52,9 +90,12 @@ jobs:
                 "prerelease": '$PRERELEASE'
               }')
 
+            # 打印原始返回，便于调试
+            echo "📥 Raw response from creating release:"
+            echo "$CREATED_RELEASE"
+
             # 检查是否创建成功
-            echo "$CREATED_RELEASE" | jq -e 'has("id")' >/dev/null 2>&1
-            if [ $? -ne 0 ]; then
+            if ! echo "$CREATED_RELEASE" | jq -e 'has("id")' >/dev/null 2>&1; then
               echo "❌ 创建 Release 失败，返回内容："
               echo "$CREATED_RELEASE"
               echo "⏩ 跳过此 Release 的附件同步"
