@@ -6,21 +6,15 @@
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <meta http-equiv='content-language' content='<?php echo get_locale() ?>'>
-    <link rel="shortcut icon" href="<?php echo pk_get_option('favicon') ?>">
-    <link rel="apple-touch-icon" href="<?php echo pk_get_option('favicon') ?>"/>
+    <?php echo pk_icon_mate(); ?>
+    <?php echo pk_get_seo_title(); ?>
     <?php if(pk_is_checked('seo_open',true)) get_template_part('inc/seo') ?>
     <?php wp_head(); ?>
-    <?php get_template_part('templates/css', 'grey') ?>
-    <?php get_template_part('templates/css', 'custom') ?>
-    <?php echo pk_head_style_var() ?>
     <?php if (!empty(pk_get_option('tj_code_header', ''))): ?>
         <?php echo pk_get_option('tj_code_header', ''); ?>
     <?php endif; ?>
-    <?php if (!empty(pk_get_option('css_code_header', ''))): ?>
-        <?php echo "<style>" . pk_get_option('css_code_header', '') . "</style>"; ?>
-    <?php endif; ?>
 </head>
-<body class="puock-<?php echo pk_theme_light() ? 'light' : 'dark';
+<body class="puock-<?php echo pk_theme_mode();
 echo current_theme_supports('custom-background') ? ' custom-background' : ''; ?>">
 <div>
     <?php if (is_single()): ?>
@@ -52,11 +46,11 @@ echo current_theme_supports('custom-background') ? ' custom-background' : ''; ?>
                     </div>
                 </div>
                 <div class="mobile-menus d-block d-lg-none p-1 puock-text">
-                    <i class="fa fa-bars t-xl mr-2 mobile-menu-s"></i>
+                    <i class="fa fa-bars t-md mr-2 mobile-menu-s"></i>
                     <?php if (pk_is_checked('theme_mode_s')): ?>
-                        <i class="fa-regular fa-<?php echo(pk_theme_light() ? 'sun' : 'moon'); ?> colorMode t-xl mr-2"></i>
+                        <i class="fa fa-<?php echo((pk_theme_mode() === 'auto' ? 'circle-half-stroke' : (pk_theme_light() ? 'sun' : 'moon'))); ?> colorMode t-md mr-2"></i>
                     <?php endif; ?>
-                    <i class="search-modal-btn fa fa-search t-md"></i>
+                    <i class="search-modal-btn fa fa-search t-md position-relative" style="top:0.5px"></i>
                 </div>
             </div>
         </div>

@@ -30,7 +30,7 @@ require_once PUOCK_ABS_DIR . '/inc/fun/cache.php';
 require_once PUOCK_ABS_DIR . '/inc/setting/index.php';
 require_once PUOCK_ABS_DIR . '/inc/ext/init.php';
 require_once PUOCK_ABS_DIR . '/inc/fun/ajax.php';
-require_once PUOCK_ABS_DIR . '/inc/fun/oauth.php';
+require_once PUOCK_ABS_DIR . '/inc/oauth/oauth.php';
 require_once PUOCK_ABS_DIR . '/inc/fun/security.php';
 require_once PUOCK_ABS_DIR . '/inc/fun/comment-ajax.php';
 require_once PUOCK_ABS_DIR . '/inc/fun/widget.php';
@@ -407,7 +407,7 @@ if (pk_get_option('gravatar_url', 'wp') != 'wp') {
     } else if ($type == 'v2ex') {
         add_filter('get_avatar', 'v2ex_ssl_avatar');
         add_filter('get_avatar_url', 'v2ex_ssl_avatar');
-    } else if($type=='custom'){
+    } else if ($type == 'custom') {
         add_filter('get_avatar', 'pk_custom_avatar');
         add_filter('get_avatar_url', 'pk_custom_avatar');
     }
@@ -488,7 +488,7 @@ function pk_baidu_submit($post_ID)
     $post_url = get_permalink($post_ID);
     $api_url = pk_get_option('baidu_submit_url');
     $resp = wp_remote_post($api_url, array('body' => $post_url, 'headers' => 'Content-Type: text/plain'));
-    $res = json_decode($resp['body'], true);
+    $res = @json_decode($resp['body'], true);
     if (isset($res['success'])) {
         add_post_meta($post_ID, 'baidu_submit_url_status', 1, true);
     }
@@ -597,9 +597,17 @@ function pk_checked_out($name, $out = '', $default = 0)
 function pk_theme_light()
 {
     if (isset($_COOKIE['mode'])) {
-        return $_COOKIE['mode'] == 'light';
+        return ($_COOKIE['mode'] == 'light') || $_COOKIE['mode'] == 'auto';
     }
     return pk_get_option('theme_mode', 'light') == 'light';
+}
+
+function pk_theme_mode()
+{
+    if (isset($_COOKIE['mode'])) {
+        return $_COOKIE['mode'];
+    }
+    return 'auto';
 }
 
 //动画载入
@@ -673,7 +681,7 @@ function pk_get_main_menu($mobile = false)
     }
     if (!$mobile) {
         if (pk_is_checked('theme_mode_s')) {
-            $out .= '<li><a class="colorMode" data-bs-toggle="tooltip" title="模式切换" href="javascript:void(0)"><i class="fa-regular fa-' . (pk_theme_light() ? 'sun' : 'moon') . '"></i></a></li>';
+            $out .= '<li><a class="colorMode" data-bs-toggle="tooltip" title="模式切换" href="javascript:void(0)"><i class="fa fa-' . ((pk_theme_mode() === 'auto' ? 'circle-half-stroke' : (pk_theme_light() ? 'sun' : 'moon'))) . '"></i></a></li>';
         }
         $out .= '<li><a class="search-modal-btn" data-bs-toggle="tooltip" title="搜索" href="javascript:void(0)"><i class="fa fa-search"></i></a></li>';
     }
@@ -773,7 +781,15 @@ function pk_pre_post_set($query)
 {
     if ($query->is_home() && $query->is_main_query()) {
         if (pk_get_option('index_mode', '') == 'cms') {
+            $sort = pk_get_option('cms_new_sort', 'published');
             $query->set('posts_per_page', pk_get_option('cms_show_new_num', 6));
+            if ($sort == 'published') {
+                $query->set('orderby', 'date');
+                $query->set('order', 'DESC');
+            } elseif ($sort == 'updated') {
+                $query->set('orderby', 'modified');
+                $query->set('order', 'DESC');
+            }
         }
     }
 }
@@ -899,7 +915,7 @@ function pk_get_req_data(array $model)
 
 function pk_get_ip_region_str($ip)
 {
-    $ip2_instance = @$GLOBALS['ip2_region'];
+    $ip2_instance = $GLOBALS['ip2_region'] ?? false;
     if (!$ip2_instance) {
         $ip2_instance = new \Ip2Region();
         $GLOBALS['ip2_region'] = $ip2_instance;
@@ -909,13 +925,13 @@ function pk_get_ip_region_str($ip)
     } catch (Exception $e) {
         return '未知';
     }
-    if (str_contains($s['region'], '内网IP')) {
+    if (strpos($s['region'], '内网IP') !== false) {
         return '内网IP';
     }
     $region = explode('|', $s['region']);
     $res = '';
     foreach ($region as $item) {
-        if (str_starts_with($item, '0')) {
+        if (strpos($item, '0') === 0) {
             continue;
         }
         $res .= $item;
@@ -994,11 +1010,13 @@ function pk_template_redirect()
 
 add_action('template_redirect', 'pk_template_redirect');
 
-function pk_query_vars($vars){
+function pk_query_vars($vars)
+{
     $vars[] = 'id';
     return $vars;
 }
-add_filter( 'query_vars', 'pk_query_vars' );
+
+add_filter('query_vars', 'pk_query_vars');
 
 function pk_load_template($_template_file, $require_once = true, $args = array())
 {

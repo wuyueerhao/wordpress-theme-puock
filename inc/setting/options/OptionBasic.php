@@ -13,6 +13,14 @@ class OptionBasic extends BaseOptionItem
             'icon' => 'dashicons-admin-generic',
             'fields' => [
                 [
+                    'id' => 'mobile_sidebar_enable',
+                    'label' => __('移动端侧边栏启用', PUOCK),
+                    'type' => 'switch',
+                    'sdt' => 'false',
+                    'badge' => ['value' => 'New'],
+                    'tips' => __('开启后，移动端将显示侧边栏按钮', PUOCK)
+                ],
+                [
                     'id' => 'basic_img_lazy_s',
                     'label' => __('图片懒加载', PUOCK),
                     'type' => 'switch',
@@ -51,6 +59,12 @@ class OptionBasic extends BaseOptionItem
                 [
                     'id' => 'link_blank_content',
                     'label' => __('正文内容链接新标签页打开', PUOCK),
+                    'type' => 'switch',
+                    'sdt' => 'false',
+                ],
+                [
+                    'id' => 'link_go_page',
+                    'label' => __('正文内容链接加跳转', PUOCK),
                     'type' => 'switch',
                     'sdt' => 'false',
                 ],
@@ -166,7 +180,8 @@ class OptionBasic extends BaseOptionItem
                 [
                     'id' => 'post_poster_open',
                     'label' => __('文章海报生成', PUOCK),
-                    'tips' => __('使用此功能如果出现图片无法生成，请检查图片是否符合跨域要求', PUOCK),
+                    'tips' => __('使用此功能如果出现图片无法生成，请检查图片是否符合跨域要求；若站点logo不显示，请将logo上传到媒体库并使用媒体库中的logo链接', PUOCK),
+
                     'type' => 'switch',
                     'sdt' => false,
                 ],
@@ -200,6 +215,20 @@ class OptionBasic extends BaseOptionItem
                     'label' => __('首页友情链接目录ID', PUOCK),
                     'type' => 'select',
                     'options' => self::get_link_category(),
+                ],
+                [
+                    'id' => 'index_link_order_by',
+                    'label' => __('首页友情链接排序字段', PUOCK),
+                    'tips' => __('根据链接字段进行排序，缺省默认值为ID排序', PUOCK),
+                    'type' => 'select',
+                    'options' => self::get_link_order_by(),
+                ],
+                [
+                    'id' => 'index_link_order',
+                    'label' => __('首页友情链接排序顺序', PUOCK),
+                    'tips' => __('缺省默认值为升序 (ASC)', PUOCK),
+                    'type' => 'select',
+                    'options' => self::get_link_order(),
                 ],
                 [
                     'id' => 'gravatar_url',

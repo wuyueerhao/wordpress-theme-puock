@@ -42,7 +42,7 @@
                     <div class="mt20 entry-content-box">
                         <div class="<?php get_entry_content_class() ?> content-main puock-text <?php pk_checked_out('post_content_indent', 'p-indent') ?>">
                             <?php if (pk_is_checked('post_read_time')): ?>
-                                <p class="fs14 c-sub no-indent">
+                                <p class="fs12 c-sub no-indent">
                                     <i class="fa-regular fa-clock"></i>
                                     <?php echo pk_read_time_tip() ?>
                                 </p>
@@ -67,7 +67,7 @@
                                 </ul>
                             </div>
                         <?php endif; ?>
-                        <div class="t-separator c-sub t-sm mt30">正文完</div>
+                        <div class="t-separator c-sub t-sm mt30"><?php _e('正文完', PUOCK) ?></div>
                         <?php if (pk_is_checked('post_foot_qrcode_open')): ?>
                             <div class="post-foot-qrcode">
                                 <div class="title"><?php echo pk_get_option('post_foot_qrcode_title', '无说明') ?></div>
@@ -108,7 +108,7 @@
                                        if ($authordata) {
                                            echo get_author_posts_url($authordata->ID,
                                                $authordata->user_nicename);
-                                       } ?>"><?php the_author() ?> </a><?php the_date('Y-m-d') ?><?php
+                                       } ?>"><?php the_author() ?> </a><?php _e('于', PUOCK) ?><?php the_date('Y-m-d') ?><?php
                                     _e('发表，', PUOCK) ?><?php _e('共计', PUOCK) ?><?php echo count_words() ?><?php _e('字。', PUOCK) ?>
                                 </div>
                                 <div class="mt-2">

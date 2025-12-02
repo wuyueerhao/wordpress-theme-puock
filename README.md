@@ -32,10 +32,7 @@
       </a>
     <br>
     <a target="_blank" href="https://licoy.cn/go/puock-update.php?r=qq_qun">
-        <img src="https://img.shields.io/badge/WeChat-交流群-07c160.svg?logo=WeChat" alt="Wechat Group">
-      </a>
-    <a target="_blank" href="https://t.me/puocktheme">
-        <img src="https://img.shields.io/badge/TG-@PuockTheme-29a9ec.svg?logo=Telegram" alt="Telegram Group">
+        <img src="https://img.shields.io/badge/QQ/微信-交流群-07c160.svg?logo=WeChat" alt="Wechat Group">
       </a>
     <br><br>
     <img src='https://repobeats.axiom.co/api/embed/5f966833712409c00d4269bf2800b2d4762e09ea.svg'></img>
@@ -59,9 +56,8 @@
 
 ### 环境要求
 
-- WordPress `>=5.0`
+- WordPress `>=6.0`
 - PHP `>=7.4`
-- MySQL `>=5.6`
 
 ## 主题特性
 
@@ -115,9 +111,7 @@
 [![Stargazers over time](https://starchart.cc/Licoy/wordpress-theme-puock.svg)](https://starchart.cc/Licoy/wordpress-theme-puock)
 
 ## 鸣谢
-
 - [Jetbrains](https://www.jetbrains.com/?from=wordpress-theme-puock)
-- [Cloudflare](https://www.cloudflare.com/?from=wordpress-theme-puock)
 
 ## 开源协议
 

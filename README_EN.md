@@ -40,9 +40,8 @@ Please go to the [release version](https://github.com/Licoy/wordpress-theme-puoc
 
 ### Environmental requirements
 
-- WordPress `5.0+`
+- WordPress `6.0+`
 - PHP `7.4+`
-- MySQL `5.6+`
 
 ## Theme characteristics
 - [x] Support day and dark mode
@@ -84,7 +83,7 @@ Please go to the [release version](https://github.com/Licoy/wordpress-theme-puoc
 - Reward theme to support：[Click me in](https://licoy.cn/puock-theme-sponsor.html)
 ## Thanks
 - [Jetbrains](https://www.jetbrains.com/?from=wordpress-theme-puock)
-- [Cloudflare](https://www.cloudflare.com/?from=wordpress-theme-puock)
+
 ## License
 - [GPL 3.0](./LICENSE)
 - Please abide by the open source agreement and keep the author's signature at the bottom of the subject

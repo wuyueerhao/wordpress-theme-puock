@@ -7,13 +7,15 @@ function pk_shortcode_register()
     global $shortCodeColors;
     $list = array(
         'music' => array('name' => '音乐播放', 'content' => '输入链接地址'),
+        'pre' => array('name' => '代码嵌入', 'content' => '输入代码'),
         'reply' => array('name' => '回复可见', 'content' => '输入内容'),
         'login' => array('name' => '登录可见', 'content' => '输入内容'),
         'github' => array('name' => 'Github仓库卡片', 'content' => 'Licoy/wordpress-theme-puock'),
         'login_email' => array('name' => '登录并验证邮箱可见', 'content' => '输入内容'),
-        'video' => array('name' => '视频播放', 'content' => '视频地址', 'attr' => array(
+        'video' => array('name' => '视频播放', 'attr' => array(
+            'url'=>'example.com/test.mp4',
             'autoplay' => false, 'type' => 'auto',
-            'pic' => 'https://xxx.com/cover.jpg', 'class' => ''
+            'pic' => '', 'class' => ''
         )),
         'download' => array('name' => '文件下载', 'content' => '文件地址', 'attr' => array(
             'file' => 'xxx.zip', 'size' => '12MB'
@@ -36,6 +38,12 @@ function pk_shortcode_register()
     }
     return $list;
 }
+// 解析pre标签 感谢阿云。小恐龙太好拉注。
+function pk_pre($atts, $content = null) {
+    $content = '<pre>' . htmlspecialchars($content) . '</pre>';
+    return $content;
+}
+add_shortcode('pre', 'pk_pre');
 
 //提示框部分
 function sc_tips($attr, $content, $tag)
@@ -99,13 +107,12 @@ function pk_sc_video($attr, $content = null)
     if (pk_is_checked('dplayer')) {
         $id = mt_rand(0, 9) . mt_rand(0, 9) . mt_rand(0, 9) . mt_rand(0, 9);
         $out = "<div id='dplayer-{$id}' class='{$class}'></div>";
-        $out .= "<script>$(function() {
+        $out .= "<script>jQuery(function() {
             new DPlayer({
                 container: document.getElementById('dplayer-{$id}'),
                 autoplay: {$auto},
                 video: {
                     url: '{$url}',
-                    pic: '{$pic}',
                     type: '{$type}'
                 },
             });

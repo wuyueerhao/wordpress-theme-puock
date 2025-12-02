@@ -12,6 +12,7 @@ class Puock {
 
     data = {
         tag: 'puock',
+        pc:true,
         params: {
             home: null,
             use_post_menu: false,
@@ -36,6 +37,11 @@ class Puock {
         },
         instance: {},
         modalStorage: {}
+    }
+
+    // 移动端侧边栏初始化已迁移到独立文件 mobile-sidebar.js
+    mobileSidebarInit() {
+        // 空实现，已迁移
     }
 
     // 全局一次加载或注册的事件
@@ -82,6 +88,8 @@ class Puock {
         this.eventPostMainBoxResize()
         this.swiperOnceEvent()
         this.initModalToggle()
+        this.detectDevice()
+        window.addEventListener('resize', ()=>this.detectDevice());
         layer.config({shade: 0.5})
         console.log("\n %c Puock Theme %c https://github.com/Licoy/wordpress-theme-puock \n\n",
             "color:#f1ab0e;background:#030307;padding:5px 0;border-top-left-radius:8px;border-bottom-left-radius:8px",
@@ -119,6 +127,11 @@ class Puock {
 
     ct(e) {
         return e.currentTarget
+    }
+
+    detectDevice() {
+        const screenWidth = window.innerWidth;
+        this.data.pc = screenWidth >= 768
     }
 
     initBasicDOMEvent() {
@@ -224,6 +237,9 @@ class Puock {
         } else {
             const url = el.attr("src") + '&t=' + (new Date()).getTime()
             el.attr("src", url)
+            el.parent().parent().find(".captcha-input").each((_, item) => {
+                $(item).val("")
+            })
         }
     }
 
@@ -370,21 +386,27 @@ class Puock {
                 duration: 50,
                 easing: "swing"
             });
+            if(!this.data.pc){
+                this.toggleMenu()
+            }
             return false;
         });
     }
 
     toggleMenu() {
-        const el = $("#post-menu-state")
+        const menuContainer = $("#post-menus");
+        const menuButton = $("#post-menu-state");
         const className = "data-open";
-        const open = el.hasClass(className);
-        const content = $("#post-menu-content");
-        if (open) {
-            content.hide();
-            el.removeClass(className);
+        const isOpen = menuButton.hasClass(className);
+        
+        if (isOpen) {
+            // 关闭菜单
+            menuContainer.removeClass("show");
+            menuButton.removeClass(className);
         } else {
-            content.show();
-            el.addClass(className);
+            // 打开菜单
+            menuContainer.addClass("show");
+            menuButton.addClass(className);
         }
     }
 
@@ -479,6 +501,7 @@ class Puock {
             this.toast(`复制${name}失败`, TYPE_DANGER)
         })
         this.lazyLoadInit()
+        this.mobileSidebarInit()
         $('#post-main, #sidebar').theiaStickySidebar({
             additionalMarginTop: 20
         });
@@ -660,25 +683,36 @@ class Puock {
     }
 
     modeInit() {
-        let light = this.localstorageToggle('light');
-        if (light !== undefined) {
-            this.modeChange(light);
-        }
+        this.modeChange();
     }
 
-    modeChange(isLight = null, isSwitch = false) {
+    modeChange(toLight = null, isSwitch = false) {
         const body = $("body");
-        if (typeof (isLight) === "string") {
-            isLight = isLight === 'true';
+        if (typeof (toLight) === "string") {
+            toLight = toLight === 'true';
         }
-        if (isLight === null) {
-            isLight = body.hasClass(this.data.tag + "-light");
+        let mode = Cookies.get('mode') || 'auto'
+        if (toLight === null) {
+            toLight = mode==='light';
+            if(mode==='auto'){
+                toLight = !window.matchMedia('(prefers-color-scheme:dark)').matches
+            }
         }
         if (isSwitch) {
-            isLight = !isLight;
+            if(mode==='light'){
+                mode = 'dark'
+                toLight = false;
+            }else if(mode==='dark'){
+                mode = 'auto'
+                toLight = !window.matchMedia('(prefers-color-scheme:dark)').matches;
+            }else{
+                mode = 'light'
+                toLight = true;
+            }
+            console.log(mode, toLight)
         }
         let dn = 'd-none';
-        if (isLight) {
+        if (toLight) {
             $("#logo-light").removeClass(dn);
             $("#logo-dark").addClass(dn);
         } else {
@@ -694,17 +728,21 @@ class Puock {
                 target = $(el).find("i");
             }
             if (target) {
-                target.removeClass("fa-sun").removeClass("fa-moon").addClass(isLight ? "fa-sun" : "fa-moon");
+                target.removeClass("fa-sun").removeClass("fa-moon").removeClass('fa-circle-half-stroke')
+                    .addClass(mode==='auto' ? 'fa-circle-half-stroke' : (mode==='light' ? "fa-sun" : "fa-moon"));
             }
         })
-        body.removeClass(isLight ? this.data.tag + "-dark" : this.data.tag + "-light");
-        body.addClass(isLight ? this.data.tag + "-light" : this.data.tag + "-dark");
-        this.localstorageToggle('light', isLight)
-        Cookies.set('mode', isLight ? 'light' : 'dark')
+        body.removeClass(this.data.tag + "-auto")
+        body.removeClass(toLight ? this.data.tag + "-dark" : this.data.tag + "-light");
+        body.addClass(toLight ? this.data.tag + "-light" : this.data.tag + "-dark");
+        // this.localstorageToggle('light', toLight)
+        Cookies.set('mode', mode)
     }
 
     modeChangeListener() {
-        this.modeChange(!window.matchMedia('(prefers-color-scheme:dark)').matches);
+        if(Cookies.get('mode')==='auto'){
+            this.modeChange(!window.matchMedia('(prefers-color-scheme:dark)').matches);
+        }
     }
 
     registerModeChangeEvent() {
@@ -912,7 +950,15 @@ class Puock {
     }
 
     eventSendPostLike() {
+        let lastSendTime = 0;
+        let throttleTimeMs = 3000;
         $(document).on("click", "#post-like", (e) => {
+            const currentTime = new Date().getTime();
+            if (currentTime - lastSendTime < throttleTimeMs) {
+                this.toast("操作过于频繁", TYPE_WARNING);
+                return
+            }
+            lastSendTime = currentTime
             const vm = $(this.ct(e))
             let id = vm.attr("data-id");
             $.post("/wp-admin/admin-ajax.php", {action: 'puock_like', um_id: id, um_action: 'like'}, (res) => {
@@ -1073,19 +1119,21 @@ class Puock {
         const prevOrNextEl = $(".single-next-or-pre")
         if (prevOrNextEl) {
             window.onkeyup = function (event) {
-                let url = null;
-                switch (event.key) {
-                    case 'ArrowLeft': {
-                        url = prevOrNextEl.find("a[rel='prev']").attr("href");
-                        break
+                if('BODY'===event.target?.tagName){
+                    let url = null;
+                    switch (event.key) {
+                        case 'ArrowLeft': {
+                            url = prevOrNextEl.find("a[rel='prev']").attr("href");
+                            break
+                        }
+                        case 'ArrowRight': {
+                            url = prevOrNextEl.find("a[rel='next']").attr("href");
+                            break
+                        }
                     }
-                    case 'ArrowRight': {
-                        url = prevOrNextEl.find("a[rel='next']").attr("href");
-                        break
+                    if (url) {
+                        window.location = url
                     }
-                }
-                if (url) {
-                    window.location = url
                 }
             }
         }
