@@ -27,21 +27,22 @@ jobs:
         run: |
           echo "=== Before reset ==="
           git remote -v
-
-          # 删除所有 remotes（确保不会误用 origin/upstream）
+      
+          # 删除所有远程仓库
           for r in $(git remote); do
             git remote remove $r || true
           done
-
+      
           echo "=== After remove ==="
           git remote -v
-
-          # 重新添加 origin（你的 fork）
+      
+          # 添加 origin（你的 fork 仓库，自动就是当前仓库，通常不需要手动加）
+          # 但为了统一，可以显式设置
           git remote add origin https://github.com/${{ github.repository }}.git
-
-          # 正确添加 upstream（上游 Licoy 仓库）
+      
+          # 添加 upstream（原仓库 Licoy/wordpress-theme-puock）
           git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
-
+      
           echo "=== Final remotes ==="
           git remote -v
 
