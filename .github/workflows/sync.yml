@@ -1,96 +1,98 @@
-name: Sync Fork & Releases
+name: Auto Sync Fork (Code + Tags + Releases)
 
 on:
   schedule:
-    - cron: "0 3 * * *"   # 每天凌晨 3 点自动同步
-  workflow_dispatch:       # 允许手动执行
+    - cron: "0 */6 * * *"   # 每 6 小时自动同步一次
+  workflow_dispatch:        # 手动触发
+  push:
+    branches:
+      - master              # 当 master 有本地提交时也处理
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout fork repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Checkout origin
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
+      - name: Set git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Setup Git
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Add upstream repository
+        run: |
+          git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
 
-    - name: Add upstream
-      run: |
-        git remote add upstream https://github.com/原作者/原仓库.git
-        git fetch upstream
+      - name: Fetch upstream
+        run: git fetch upstream
 
-    - name: Checkout master branch
-      run: git checkout master
+      - name: Merge upstream/master → fork/master
+        run: |
+          git checkout master
+          git merge upstream/master --allow-unrelated-histories -X theirs || true
+          git push origin master || true
 
-    - name: Merge upstream master
-      run: |
-        git merge upstream/master --allow-unrelated-histories || true
+      - name: Sync tags
+        run: |
+          git fetch upstream --tags
+          git push origin --tags
 
-    - name: Push merged changes
-      run: |
-        git push origin master || true
+      # 同步 Releases（含 assets）
+      - name: Get latest upstream release
+        id: upstream_release
+        run: |
+          latest=$(curl -s https://api.github.com/repos/Licoy/wordpress-theme-puock/releases/latest | jq -r '.tag_name')
+          echo "latest_tag=$latest" >> $GITHUB_OUTPUT
 
-    - name: Sync tags from upstream
-      run: |
-        git fetch upstream --tags
-        git push origin --tags || true
+      - name: Check if release exists in fork
+        id: release_exists
+        run: |
+          fork_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.upstream_release.outputs.latest_tag }} | jq -r '.tag_name')
+          if [[ "$fork_release" == "${{ steps.upstream_release.outputs.latest_tag }}" ]]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
 
-    # ----- 同步 Releases -----
+      - name: Create missing release in fork (with assets)
+        if: steps.release_exists.outputs.exists == 'false'
+        run: |
+          upstream_api="https://api.github.com/repos/Licoy/wordpress-theme-puock/releases/latest"
 
-    - name: Install GitHub CLI
-      run: |
-        sudo apt update
-        sudo apt install -y gh
+          # 下载 upstream release 信息
+          body=$(curl -s $upstream_api | jq -r '.body')
+          tag=$(curl -s $upstream_api | jq -r '.tag_name')
+          name=$(curl -s $upstream_api | jq -r '.name')
 
-    - name: Authenticate GH CLI
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: |
-        gh auth login --with-token <<< "$GH_TOKEN"
+          # 创建 release
+          release_id=$(curl -s \
+            -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"tag_name\":\"$tag\",\"name\":\"$name\",\"body\":\"$body\",\"draft\":false,\"prerelease\":false}" \
+            https://api.github.com/repos/${{ github.repository }}/releases \
+            | jq -r '.id')
 
-    - name: Fetch upstream releases list
-      id: list
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: |
-        gh release list -R 原作者/原仓库 --limit 100 > releases.txt
-        cat releases.txt
+          echo "Created release ID: $release_id"
 
-    - name: Sync each release
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: |
-        while read -r line; do
-          TAG=$(echo $line | awk '{print $1}')
-          echo ">>> Processing release: $TAG"
+          # 下载 upstream assets 并重新上传
+          assets=$(curl -s $upstream_api | jq -c '.assets[]')
+          for asset in $assets; do
+            url=$(echo "$asset" | jq -r '.browser_download_url')
+            filename=$(echo "$asset" | jq -r '.name')
 
-          # 如果 Fork 已有对应 release → 跳过
-          gh release list -R $GITHUB_REPOSITORY | grep -q "$TAG" && {
-            echo "Release $TAG exists → skipping."
-            continue
-          }
+            echo "Downloading asset: $filename"
+            curl -L -o "$filename" "$url"
 
-          echo "Syncing Release $TAG ..."
-
-          # 下载 upstream release assets
-          mkdir -p assets
-          gh release download "$TAG" -R 原作者/原仓库 -D assets
-
-          # 获取 release 说明
-          BODY=$(gh release view "$TAG" -R 原作者/原仓库 --json body -q ".body")
-
-          # 创建 release 到 fork
-          gh release create "$TAG" assets/* \
-            --notes "$BODY" \
-            -R $GITHUB_REPOSITORY \
-            || echo "No assets for $TAG"
-
-          rm -rf assets
-        done < releases.txt
+            echo "Uploading asset: $filename"
+            curl -s \
+              -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$filename" \
+              https://uploads.github.com/repos/${{ github.repository }}/releases/$release_id/assets?name=$filename
+          done
