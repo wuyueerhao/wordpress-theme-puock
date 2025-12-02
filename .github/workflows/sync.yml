@@ -3,16 +3,15 @@ name: Sync Fork & Releases
 on:
   schedule:
     - cron: "0 3 * * *"   # 每天凌晨 3 点自动同步
-  workflow_dispatch:       # 手动执行
-  push:
-    branches: [ main ]
+  workflow_dispatch:       # 允许手动执行
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+
+    - name: Checkout origin
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
@@ -24,17 +23,19 @@ jobs:
 
     - name: Add upstream
       run: |
-        git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
+        git remote add upstream https://github.com/原作者/原仓库.git
         git fetch upstream
 
-    - name: Merge upstream changes
-      run: |
-        git checkout main
-        git merge upstream/main --allow-unrelated-histories || true
+    - name: Checkout master branch
+      run: git checkout master
 
-    - name: Push changes to origin
+    - name: Merge upstream master
       run: |
-        git push origin main || true
+        git merge upstream/master --allow-unrelated-histories || true
+
+    - name: Push merged changes
+      run: |
+        git push origin master || true
 
     - name: Sync tags from upstream
       run: |
@@ -48,44 +49,48 @@ jobs:
         sudo apt update
         sudo apt install -y gh
 
-    - name: Login to GitHub CLI
-      run: gh auth login --with-token <<< "$GH_TOKEN"
+    - name: Authenticate GH CLI
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-    - name: Get release list from upstream
-      id: list
       run: |
-        gh release list -R Licoy/wordpress-theme-puock --limit 100 > releases.txt
-        cat releases.txt
+        gh auth login --with-token <<< "$GH_TOKEN"
+
+    - name: Fetch upstream releases list
+      id: list
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      run: |
+        gh release list -R 原作者/原仓库 --limit 100 > releases.txt
+        cat releases.txt
 
     - name: Sync each release
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
         while read -r line; do
           TAG=$(echo $line | awk '{print $1}')
           echo ">>> Processing release: $TAG"
 
-          # 如果 fork 已有该 release，跳过
+          # 如果 Fork 已有对应 release → 跳过
           gh release list -R $GITHUB_REPOSITORY | grep -q "$TAG" && {
-            echo "Release $TAG already exists, skipping."
+            echo "Release $TAG exists → skipping."
             continue
           }
 
-          # 下载 upstream release assets
-          mkdir -p temp_assets
-          gh release download "$TAG" -R Licoy/wordpress-theme-puock -D temp_assets
+          echo "Syncing Release $TAG ..."
 
-          # 获取 release 描述
-          BODY=$(gh release view "$TAG" -R Licoy/wordpress-theme-puock --json body -q ".body")
+          # 下载 upstream release assets
+          mkdir -p assets
+          gh release download "$TAG" -R 原作者/原仓库 -D assets
+
+          # 获取 release 说明
+          BODY=$(gh release view "$TAG" -R 原作者/原仓库 --json body -q ".body")
 
           # 创建 release 到 fork
-          gh release create "$TAG" temp_assets/* \
+          gh release create "$TAG" assets/* \
             --notes "$BODY" \
-            -R $GITHUB_REPOSITORY
+            -R $GITHUB_REPOSITORY \
+            || echo "No assets for $TAG"
 
-          rm -rf temp_assets
+          rm -rf assets
         done < releases.txt
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
