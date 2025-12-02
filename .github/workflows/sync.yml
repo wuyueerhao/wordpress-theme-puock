@@ -3,7 +3,7 @@ name: Auto Sync Fork (Code + Tags + Releases)
 on:
   schedule:
     - cron: "0 */6 * * *"   # 每 6 小时同步一次
-  workflow_dispatch:        # 手动触发
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -21,23 +21,32 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # -------------------------------------------------------
-      # 🔥 最关键的修复：重置 remotes，避免 403 和错误 fetch
+      # 🔥 最关键部分：彻底修复 remote，解决你遇到的 403 问题
       # -------------------------------------------------------
-      - name: Reset remotes and add upstream
+      - name: Reset remotes correctly
         run: |
-          git remote remove upstream 2>/dev/null || true
-          git remote remove origin 2>/dev/null || true
+          echo "=== Before reset ==="
+          git remote -v
 
-          # 重新添加 origin（你的 Fork 仓库）
+          # 删除所有 remotes（确保不会误用 origin/upstream）
+          for r in $(git remote); do
+            git remote remove $r || true
+          done
+
+          echo "=== After remove ==="
+          git remote -v
+
+          # 重新添加 origin（你的 fork）
           git remote add origin https://github.com/${{ github.repository }}.git
 
-          # 添加 upstream（上游仓库）
+          # 正确添加 upstream（上游 Licoy 仓库）
           git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
 
+          echo "=== Final remotes ==="
           git remote -v
 
       # -------------------------------------------------------
-      # 同步代码（master）
+      # 同步代码 (master)
       # -------------------------------------------------------
       - name: Fetch upstream
         run: git fetch upstream
@@ -57,8 +66,9 @@ jobs:
           git push origin --tags
 
       # -------------------------------------------------------
-      # 同步 Releases（含 assets）
+      # 同步 Releases（包括所有 assets）
       # -------------------------------------------------------
+
       - name: Get latest upstream release
         id: upstream_release
         run: |
@@ -80,11 +90,14 @@ jobs:
         run: |
           upstream_api="https://api.github.com/repos/Licoy/wordpress-theme-puock/releases/latest"
 
+          # release 信息
           body=$(curl -s $upstream_api | jq -r '.body')
           tag=$(curl -s $upstream_api | jq -r '.tag_name')
           name=$(curl -s $upstream_api | jq -r '.name')
 
-          # 创建 Release
+          echo "Creating release: $tag"
+
+          # 创建 release
           release_id=$(curl -s \
             -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
@@ -95,7 +108,7 @@ jobs:
 
           echo "Created release ID: $release_id"
 
-          # 下载并上传 assets
+          # 下载 & 上传 assets
           assets=$(curl -s $upstream_api | jq -c '.assets[]')
           for asset in $assets; do
             url=$(echo "$asset" | jq -r '.browser_download_url')
