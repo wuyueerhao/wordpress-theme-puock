@@ -1,41 +1,42 @@
-name: Sync Upstream Code (Main Branch)
+name: Sync Upstream Master Branch
 
 on:
   schedule:
-    - cron: "0 */6 * * *"  # 每 6 小时自动运行一次（可自定义）
-  workflow_dispatch:      # 支持手动触发
+    - cron: "0 */6 * * *"  # 每 6 小时自动运行一次（可自定义，比如每天一次 "0 0 * * *"）
+  workflow_dispatch:      # 支持手动触发运行
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout your fork (wuyueerhao/wordpress-theme-puock)
+      - name: Checkout your fork repository (wuyueerhao/wordpress-theme-puock)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取全部 Git 历史，便于 merge
+          ref: master         # 检出你的 master 分支
+          fetch-depth: 0      # 获取完整 Git 历史，以便 merge 或 reset
 
       - name: Set Git Identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add 'upstream' remote (original repo)
+      - name: Add 'upstream' remote (原仓库：Licoy/wordpress-theme-puock)
         run: |
           git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
 
-      - name: Fetch upstream branches and commits
+      - name: Fetch upstream branches (包括 upstream/master)
         run: |
           git fetch upstream
 
-      - name: Checkout your main branch
+      - name: Checkout your fork's master branch
         run: |
-          git checkout master  # 如果你用 master，请改成 git checkout master
+          git checkout master
 
-      - name: Merge upstream/main into your main
+      - name: Merge upstream/master into your fork's master
         run: |
-          git merge upstream/main --allow-unrelated-histories -X theirs || echo "Merge failed or not needed"
+          git merge upstream/master --allow-unrelated-histories -X theirs || echo "Merge failed or no changes"
 
-      - name: Push changes to your fork's main branch
+      - name: Push updated master to your fork
         run: |
           git push origin master
