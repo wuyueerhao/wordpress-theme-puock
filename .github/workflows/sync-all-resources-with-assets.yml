@@ -1,4 +1,4 @@
-- name: Sync Releases and Assets using GitHub API
+- name: 2333
         env:
           SOURCE_REPO: Licoy/wordpress-theme-puock
           TARGET_REPO: wuyueerhao/wordpress-theme-puock
