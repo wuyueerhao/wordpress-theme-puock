@@ -1,125 +1,37 @@
-name: Auto Sync Fork (Code + Tags + Releases)
+name: Sync Upstream Tags
 
 on:
   schedule:
-    - cron: "0 */6 * * *"  # 每 6 小时自动运行一次
+    - cron: "0 */6 * * *"  # 每 6 小时运行一次（可调整）
   workflow_dispatch:      # 支持手动触发
 
 jobs:
-  sync:
+  sync-tags:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout your fork repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取全部 Git 历史，以便 merge
+          fetch-depth: 0  # 获取全部历史记录，便于后续可能的 merge
 
       - name: Set Git Identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Reset and configure remotes correctly
+      - name: Add 'upstream' remote pointing to original repo and fetch tags
         run: |
-          echo "=== Before remote reset ==="
-          git remote -v
-
-          # 移除所有已有的远程仓库
-          for r in $(git remote); do
-            git remote remove $r || true
-          done
-
-          echo "=== After remote removal ==="
-          git remote -v
-
-          # 添加 origin（你的 fork，通常是自动设置的，这里再明确设置一次）
-          git remote add origin https://github.com/${{ github.repository }}.git
-
-          # 添加 upstream（原仓库：Licoy/wordpress-theme-puock，必须是公开仓库）
+          # 添加 upstream 远程，指向原仓库（Licoy/wordpress-theme-puock）
           git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
 
-          echo "=== Final remotes ==="
-          git remote -v
-
-      - name: Fetch latest code from upstream
-        run: git fetch upstream
-
-      - name: Merge upstream/master into your fork's master
-        run: |
-          git checkout master
-          git merge upstream/master --allow-unrelated-histories -X theirs || true
-          git push origin master || true
-
-      - name: Sync upstream tags
-        run: |
+          # 拉取 upstream 的 tags（公开仓库，无需 token）
           git fetch upstream --tags
-          git push origin --tags
 
-      - name: Get latest release tag from upstream
-        id: upstream_release_tag
+          # 查看所有 tags（调试用，可选）
+          echo "Fetched tags from upstream:"
+          git tag -l
+
+      - name: Show remotes (for debug)
         run: |
-          UPSTREAM_REPO="Licoy/wordpress-theme-puock"
-          LATEST_RELEASE_URL="https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest"
-          LATEST_TAG=$(curl -s "${LATEST_RELEASE_URL}" | jq -r '.tag_name')
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Check if that release already exists in your fork
-        id: check_release_in_fork
-        run: |
-          FORK_REPO="${{ github.repository }}"
-          LATEST_TAG="${{ steps.upstream_release_tag.outputs.latest_tag }}"
-          RELEASE_CHECK_URL="https://api.github.com/repos/${FORK_REPO}/releases/tags/${LATEST_TAG}"
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Accept: application/vnd.github.v3+json" "${RELEASE_CHECK_URL}")
-          if [ "$HTTP_STATUS" -eq 200 ]; then
-            echo "Release ${LATEST_TAG} already exists in your fork."
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Release ${LATEST_TAG} does NOT exist in your fork."
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create the missing release in your fork (with assets)
-        if: steps.check_release_in_fork.outputs.exists == 'false'
-        run: |
-          UPSTREAM_REPO="Licoy/wordpress-theme-puock"
-          FORK_REPO="${{ github.repository }}"
-          LATEST_TAG="${{ steps.upstream_release_tag.outputs.latest_tag }}"
-          RELEASE_API_URL="https://api.github.com/repos/${UPSTREAM_REPO}/releases/tags/${LATEST_TAG}"
-
-          # 获取 release 信息
-          RELEASE_INFO=$(curl -s "${RELEASE_API_URL}")
-          TAG_NAME=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
-          RELEASE_NAME=$(echo "$RELEASE_INFO" | jq -r '.name')
-          RELEASE_BODY=$(echo "$RELEASE_INFO" | jq -r '.body')
-
-          echo "Creating release [${TAG_NAME}] in your fork..."
-
-          # 创建 release
-          RELEASE_RESPONSE=$(curl -s \
-            -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"${TAG_NAME}\",\"name\":\"${RELEASE_NAME}\",\"body\":\"${RELEASE_BODY}\",\"draft\":false,\"prerelease\":false}" \
-            "https://api.github.com/repos/${FORK_REPO}/releases")
-
-          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | jq -r '.id')
-          echo "Created Release ID: ${RELEASE_ID}"
-
-          # 下载并上传所有 release assets
-          ASSETS_JSON=$(curl -s "${RELEASE_API_URL}" | jq -c '.assets[]')
-          for asset in $(echo "$ASSETS_JSON" | jq -r '.'); do
-            ASSET_URL=$(echo "$asset" | jq -r '.browser_download_url')
-            ASSET_NAME=$(echo "$asset" | jq -r '.name')
-            echo "Downloading asset: ${ASSET_NAME} from ${ASSET_URL}"
-
-            curl -L -o "${ASSET_NAME}" "${ASSET_URL}"
-
-            echo "Uploading asset: ${ASSET_NAME} to your fork release..."
-            curl -s \
-              -X POST \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"${ASSET_NAME}" \
-              "https://uploads.github.com/repos/${FORK_REPO}/releases/${RELEASE_ID}/assets?name=${ASSET_NAME}"
-          done
+          git remote -v
