@@ -1,40 +1,91 @@
-name: Upstream Sync
-
-permissions:
-  contents: write
+name: Sync Fork & Releases
 
 on:
   schedule:
-    - cron: "0 0 * * *" # every day
-  workflow_dispatch:
+    - cron: "0 3 * * *"   # 每天凌晨 3 点自动同步
+  workflow_dispatch:       # 手动执行
+  push:
+    branches: [ main ]
 
 jobs:
-  sync_latest_from_upstream:
-    name: Sync latest commits from upstream repo
+  sync:
     runs-on: ubuntu-latest
-    if: ${{ github.event.repository.fork }}
 
     steps:
-      # Step 1: run a standard checkout action
-      - name: Checkout target repo
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
-      # Step 2: run the sync action
-      - name: Sync upstream changes
-        id: sync
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
-        with:
-          upstream_sync_repo: ChatGPTNextWeb/ChatGPT-Next-Web
-          upstream_sync_branch: main
-          target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }} # automatically generated, no need to set
+    - name: Setup Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Set test_mode true to run tests instead of the true action!!
-          test_mode: false
+    - name: Add upstream
+      run: |
+        git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
+        git fetch upstream
 
-      - name: Sync check
-        if: failure()
-        run: |
-          echo "[Error] 由于上游仓库的 workflow 文件变更，导致 GitHub 自动暂停了本次自动更新，你需要手动 Sync Fork 一次，详细教程请查看：https://github.com/Yidadaa/ChatGPT-Next-Web/blob/main/README_CN.md#%E6%89%93%E5%BC%80%E8%87%AA%E5%8A%A8%E6%9B%B4%E6%96%B0"
-          echo "[Error] Due to a change in the workflow file of the upstream repository, GitHub has automatically suspended the scheduled automatic update. You need to manually sync your fork. Please refer to the detailed tutorial for instructions: https://github.com/Yidadaa/ChatGPT-Next-Web#enable-automatic-updates"
-          exit 1
+    - name: Merge upstream changes
+      run: |
+        git checkout main
+        git merge upstream/main --allow-unrelated-histories || true
+
+    - name: Push changes to origin
+      run: |
+        git push origin main || true
+
+    - name: Sync tags from upstream
+      run: |
+        git fetch upstream --tags
+        git push origin --tags || true
+
+    # ----- 同步 Releases -----
+
+    - name: Install GitHub CLI
+      run: |
+        sudo apt update
+        sudo apt install -y gh
+
+    - name: Login to GitHub CLI
+      run: gh auth login --with-token <<< "$GH_TOKEN"
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    - name: Get release list from upstream
+      id: list
+      run: |
+        gh release list -R Licoy/wordpress-theme-puock --limit 100 > releases.txt
+        cat releases.txt
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    - name: Sync each release
+      run: |
+        while read -r line; do
+          TAG=$(echo $line | awk '{print $1}')
+          echo ">>> Processing release: $TAG"
+
+          # 如果 fork 已有该 release，跳过
+          gh release list -R $GITHUB_REPOSITORY | grep -q "$TAG" && {
+            echo "Release $TAG already exists, skipping."
+            continue
+          }
+
+          # 下载 upstream release assets
+          mkdir -p temp_assets
+          gh release download "$TAG" -R Licoy/wordpress-theme-puock -D temp_assets
+
+          # 获取 release 描述
+          BODY=$(gh release view "$TAG" -R Licoy/wordpress-theme-puock --json body -q ".body")
+
+          # 创建 release 到 fork
+          gh release create "$TAG" temp_assets/* \
+            --notes "$BODY" \
+            -R $GITHUB_REPOSITORY
+
+          rm -rf temp_assets
+        done < releases.txt
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
