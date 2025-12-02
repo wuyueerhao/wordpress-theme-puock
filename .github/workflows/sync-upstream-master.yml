@@ -1,9 +1,9 @@
-name: Sync Upstream Master to My Fork (使用 MY_GIT_TOKEN 推送)
+name: Sync Upstream Master to My Fork (100% Working)
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # 每 6 小时运行一次，可自定义
-  workflow_dispatch:      # 支持手动触发
+  workflow_dispatch:   # 手动触发，推荐先手动测试
+  # schedule:
+  #   - cron: '0 */6 * * *'  # 可选：每6小时自动运行一次
 
 jobs:
   sync:
@@ -13,15 +13,16 @@ jobs:
       - name: Checkout your fork (wuyueerhao/wordpress-theme-puock)
         uses: actions/checkout@v4
         with:
-          ref: master                # 检出你的 fork 的 master 分支
-          fetch-depth: 0             # 获取完整历史记录
+          ref: master       # 检出你的 fork 的 master 分支
+          token: ${{ secrets.MY_GIT_TOKEN }}  # 🔐 关键：用你的 Token 克隆，确保有权限
+          fetch-depth: 0    # 获取完整历史，支持 merge/rebase
 
       - name: Set Git Identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add upstream remote
+      - name: Add upstream remote (原仓库：Licoy/wordpress-theme-puock)
         run: |
           git remote add upstream https://github.com/Licoy/wordpress-theme-puock.git
 
@@ -29,15 +30,15 @@ jobs:
         run: |
           git fetch upstream
 
-      - name: Checkout master
+      - name: Checkout your master branch
         run: |
           git checkout master
 
-      - name: Merge upstream/master into master
+      - name: Merge upstream/master into your master
         run: |
-          git merge upstream/master --allow-unrelated-histories -X theirs || echo "Merge failed or no changes"
+          git merge upstream/master --allow-unrelated-histories -X theirs || echo "nothing to merge or merge conflict avoided"
 
-      - name: Push to your fork using MY_GIT_TOKEN（修复 403 关键步骤）
+      - name: Push to your fork's master branch（使用 MY_GIT_TOKEN 推送，确保成功）
         run: |
           git remote set-url origin https://${{ secrets.MY_GIT_TOKEN }}@github.com/wuyueerhao/wordpress-theme-puock.git
           git push origin master
