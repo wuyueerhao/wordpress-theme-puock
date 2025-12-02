@@ -2,7 +2,7 @@ name: Sync Upstream Master to My Fork (使用 MY_GIT_TOKEN 推送)
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # 每 6 小时运行一次（可自定义）
+    - cron: '0 */6 * * *'  # 每 6 小时运行一次，可自定义
   workflow_dispatch:      # 支持手动触发
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
         run: |
           git merge upstream/master --allow-unrelated-histories -X theirs || echo "Merge failed or no changes"
 
-      - name: Push to your fork using MY_GIT_TOKEN（关键修复 403）
+      - name: Push to your fork using MY_GIT_TOKEN（修复 403 关键步骤）
         run: |
           git remote set-url origin https://${{ secrets.MY_GIT_TOKEN }}@github.com/wuyueerhao/wordpress-theme-puock.git
           git push origin master
